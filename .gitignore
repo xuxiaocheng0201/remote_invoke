@@ -1,0 +1,9 @@
+/*
+
+### Cargo ###
+!/.gitignore
+!/Cargo.lock
+!/Cargo.toml
+
+### WList Server ###
+!/src

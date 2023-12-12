@@ -1,10 +1,15 @@
 use anyhow::Result;
-use crate::network::try_select_link;
+use tokio::time::Instant;
 
 mod network;
+mod image_grab;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("{:?}", try_select_link(true).await?);
-    Ok(())
+    loop {
+        let now = Instant::now();
+        image_grab::capture(&"screens").await?;
+        println!("{:?}", now.elapsed());
+    }
+    // Ok(())
 }

@@ -1,5 +1,5 @@
 use std::sync::mpsc::sync_channel;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use json::JsonError;
 use tokio::task;
 
@@ -24,7 +24,7 @@ async fn get_all_links() -> Result<Vec<String>> {
     }
     let code = code.unwrap();
     if code < 0 {
-        return Ok(Vec::new());
+        return Err(anyhow!("Service unavailable."));
     }
     let link = link.unwrap();
     let mut links = Vec::new();
@@ -49,8 +49,11 @@ pub async fn try_select_link(dangerous: bool) -> Result<Option<String>> {
         let sender = sender.clone();
         tasks.push(task::spawn(async move {
             let _ = if match client.get(link.to_owned() + "/ping").send().await {
-                Ok(r ) => r.text().await.is_ok(),
-                Err(e) => { println!("{:?}", e); false },
+                Ok(r) => r.text().await.is_ok(),
+                Err(e) => {
+                    println!("{:?}", e);
+                    false
+                }
             } { sender.send(Some(link)) } else { sender.send(None) };
         }));
     }

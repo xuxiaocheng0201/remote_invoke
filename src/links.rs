@@ -1,6 +1,7 @@
 use std::sync::mpsc::sync_channel;
 use anyhow::{anyhow, Result};
 use json::JsonError;
+use tokio::net::TcpStream;
 use tokio::task;
 
 async fn get_all_links() -> Result<Vec<String>> {
@@ -38,29 +39,24 @@ async fn get_all_links() -> Result<Vec<String>> {
     Ok(links)
 }
 
-pub async fn try_select_link(dangerous: bool) -> Result<Option<String>> {
+pub async fn try_select_link() -> Result<Option<TcpStream>> {
     let links = get_all_links().await?;
     let len = links.len();
     let mut tasks = Vec::new();
     let (sender, receiver) = sync_channel(len);
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(dangerous).build()?;
     for link in links {
-        let client = client.clone();
         let sender = sender.clone();
         tasks.push(task::spawn(async move {
-            let _ = if match client.get(link.to_owned() + "/ping").send().await {
-                Ok(r) => r.text().await.is_ok(),
-                Err(e) => {
-                    println!("{:?}", e);
-                    false
-                }
-            } { sender.send(Some(link)) } else { sender.send(None) };
+            let _ = match TcpStream::connect(link).await {
+                Ok(s) => sender.send(Some(s)),
+                Err(_) => sender.send(None),
+            };
         }));
     }
     for _ in 0..len {
-        let a = receiver.recv()?;
-        if a.is_some() {
-            return Ok(Some(a.unwrap() + "/"));
+        let stream = receiver.recv()?;
+        if stream.is_some() {
+            return Ok(Some(stream.unwrap()));
         }
     }
     Ok(None)

@@ -1107,6 +1107,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
+ "futures-util",
  "json",
  "md-5",
  "reqwest",

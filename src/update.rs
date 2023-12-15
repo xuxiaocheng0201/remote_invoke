@@ -1,23 +1,21 @@
-use std::io::Read;
-use std::process::{Command, exit};
+use std::fs::OpenOptions;
+use std::io::{Read, Write};
+use std::process::Command;
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
-use md5::digest::Update;
+use futures_util::StreamExt;
 use md5::{Digest, Md5};
-use tempfile::tempfile;
-use tokio::fs::rename;
-use tokio::io::AsyncWriteExt;
 use variable_len_reader::str::{read_string, write_string};
 
 pub async fn update(bytes: &mut impl Read) -> Result<(BytesMut, bool)> {
     let url = read_string(bytes)?;
     let md5 = read_string(bytes)?;
     let mut stream = reqwest::get(url).await?.bytes_stream();
-    let mut file = tempfile()?;
-    let hasher = Md5::default();
+    let mut file = OpenOptions::new().write(true).read(true).create(true).truncate(true).open("update.exe")?;
+    let mut hasher = Md5::default();
     while let Some(bin) = stream.next().await {
         let bin = bin?;
-        file.write_all(&bin).await?;
+        file.write_all(&bin)?;
         hasher.update(&bin);
     }
     let hasher = format!("{:x}", hasher.finalize());
@@ -27,8 +25,7 @@ pub async fn update(bytes: &mut impl Read) -> Result<(BytesMut, bool)> {
         (writer.into_inner(), false)
     } else {
         write_string(&mut writer, &"Download successfully.")?;
-        rename(file, "update.exe").await?;
-        Command::new("./update.exe").spawn()?;
+        Command::new("update.exe").spawn()?;
         (writer.into_inner(), true)
     })
 }

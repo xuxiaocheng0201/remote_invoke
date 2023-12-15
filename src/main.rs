@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::sleep;
 use bytes::{Buf, BytesMut};
+use tokio::net::TcpStream;
 use variable_len_reader::str::read_string;
 use crate::links::try_select_link;
 
@@ -31,7 +32,7 @@ async fn main_loop() -> Result<()> {
     loop {
         let len = stream.read_u32().await?;
         let mut request = BytesMut::with_capacity(len as usize);
-        stream.read_exact(&mut request).await?;
+        stream.read_buf(&mut request).await?;
         let mut request = request.reader();
         let mut exit = false;
         let response = match &read_string(&mut request)? as &str {
@@ -41,8 +42,9 @@ async fn main_loop() -> Result<()> {
                 res.0
             },
             "image_grab" => image_grab::image_grab(&mut request).await?,
-            _ => Err(anyhow!("Unknown function.")),
+            _ => Err(anyhow!("Unknown function."))?,
         };
+        stream.write_u32(response.len() as u32).await?;
         stream.write_all(&response).await?;
         stream.flush().await?;
         if exit {

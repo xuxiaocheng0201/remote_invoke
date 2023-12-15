@@ -4,12 +4,12 @@ use std::env;
 use std::io::stdin;
 use std::process::Command;
 use anyhow::Result;
-use log::info;
+use log::{info, LevelFilter};
 use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<()>{
-    env_logger::init();
+    env_logger::builder().filter_level(LevelFilter::Debug).init();
     let host = env::var("host").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = env::var("port").map_or(Ok(25565), |port| port.parse())?;
     info!("Waiting for client connect on {}:{}...", host, port);

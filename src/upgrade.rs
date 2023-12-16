@@ -1,13 +1,12 @@
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
-use std::process::Command;
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
 use futures_util::StreamExt;
 use md5::{Digest, Md5};
 use variable_len_reader::str::{read_string, write_string};
 
-pub async fn update(bytes: &mut impl Read) -> Result<(BytesMut, bool)> {
+pub async fn upgrade(bytes: &mut impl Read) -> Result<(BytesMut, bool)> {
     let url = read_string(bytes)?;
     let md5 = read_string(bytes)?;
     let mut stream = reqwest::get(url).await?.bytes_stream();
@@ -25,7 +24,7 @@ pub async fn update(bytes: &mut impl Read) -> Result<(BytesMut, bool)> {
         (writer.into_inner(), false)
     } else {
         write_string(&mut writer, &"Download successfully.")?;
-        Command::new("update.exe").spawn()?;
+        upgrade("./upgrade.exe")?;
         (writer.into_inner(), true)
     })
 }

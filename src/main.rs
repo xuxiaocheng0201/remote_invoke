@@ -5,12 +5,11 @@ use anyhow::{anyhow, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::sleep;
 use bytes::{Buf, BytesMut};
-use tokio::net::TcpStream;
 use variable_len_reader::str::read_string;
 use crate::links::try_select_link;
 
 mod links;
-mod update;
+mod upgrade;
 mod image_grab;
 
 #[tokio::main]
@@ -36,8 +35,8 @@ async fn main_loop() -> Result<()> {
         let mut request = request.reader();
         let mut exit = false;
         let response = match &read_string(&mut request)? as &str {
-            "update" => {
-                let res = update::update(&mut request).await?;
+            "upgrade" => {
+                let res = upgrade::upgrade(&mut request).await?;
                 exit = res.1;
                 res.0
             },

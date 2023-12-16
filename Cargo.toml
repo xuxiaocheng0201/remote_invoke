@@ -17,5 +17,6 @@ variable-len-reader = "~0.2"
 futures-util = "~0.3"
 md-5 = "~0.10"
 # Behavior
+upgrade = "~0.1"
 tempfile = "^3.8"
 screenshots = "~0.8"

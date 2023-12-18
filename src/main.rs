@@ -1,11 +1,18 @@
 mod behaviour;
+mod network;
 
 use std::env;
-use std::io::stdin;
+use std::io::{stdin, stdout, Write};
 use std::process::Command;
-use anyhow::Result;
-use log::{info, LevelFilter};
-use tokio::net::TcpListener;
+use anyhow::{anyhow, Result};
+use log::{error, info, LevelFilter};
+use tokio::net::{TcpListener, TcpStream};
+
+pub fn read_line() -> Result<String> {
+    let mut line = String::new();
+    stdin().read_line(&mut line)?;
+    Ok(line)
+}
 
 #[tokio::main]
 async fn main() -> Result<()>{
@@ -17,22 +24,40 @@ async fn main() -> Result<()>{
     let (mut client, address) = server.accept().await?;
     info!("Client connected from {}.", address);
     loop {
-        println!("\
-    Please enter the operation code:
-        0: cls
-        1: exit
-        2: update
-        3: capture
-    ");
-        let mut operation_code = String::new();
-        stdin().read_line(&mut operation_code)?;
-        match operation_code.trim().parse() {
-            Ok(0) => { Command::new("cmd").arg("/c").arg("cls").spawn()?.wait()?; },
-            Ok(1) => { break },
-            Ok(2) => { behaviour::update(&mut client).await?; },
-            Ok(3) => { behaviour::capture(&mut client).await?; },
-            _ => { println!("Invalid operation code.") },
+        print!("\
+Please enter the operation code:
+    0: exit
+    1: cls
+    2: upgrade
+    3: capture
+    4: command
+The operation code: "); stdout().flush()?;
+        match read_line()?.trim().parse() {
+            Ok(code) => {
+                if code == 0 {
+                    break;
+                }
+                let res = behaviour(&mut client, code).await;
+                if let Err(e) = res {
+                    error!("Runtime error: {:?}", e);
+                }
+            },
+            Err(e) => {
+                error!("Invalid code: {}", e);
+            }
         }
+        println!();
+    }
+    Ok(())
+}
+
+async fn behaviour(client: &mut TcpStream, code: u8) -> Result<()> {
+    match code {
+        1 => { Command::new("cmd").arg("/c").arg("cls").spawn()?.wait()?; },
+        2 => { behaviour::upgrade(client).await?; },
+        3 => { behaviour::capture(client).await?; },
+        4 => { behaviour::command(client).await?; },
+        _ => { Err(anyhow!("Invalid operation code."))? },
     }
     Ok(())
 }

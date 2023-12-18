@@ -1,0 +1,28 @@
+use anyhow::{anyhow, Result};
+use bytes::{Buf, BytesMut};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use variable_len_reader::str::read_string;
+
+pub async fn send(stream: &mut TcpStream, message: &[u8]) -> Result<()> {
+    stream.write_u128(message.len() as u128).await?;
+    stream.write_all(message).await?;
+    stream.flush().await?;
+    Ok(())
+}
+
+pub async fn recv(stream: &mut TcpStream) -> Result<Result<BytesMut>> {
+    Ok(if stream.read_u8().await? == 0 {
+        let len = stream.read_u128().await? as usize;
+        let mut buffer = BytesMut::zeroed(len);
+        stream.read_exact(&mut buffer).await?;
+        Ok(buffer)
+    } else {
+        let len = stream.read_u128().await? as usize;
+        let mut buffer = BytesMut::zeroed(len);
+        stream.read_exact(&mut buffer).await?;
+        let mut reader = buffer.reader();
+        let message = read_string(&mut reader)?;
+        Err(anyhow!(message))
+    })
+}

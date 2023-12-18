@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 # Common
 anyhow = "^1.0"
-tokio = { version = "^1.35", features = ["rt-multi-thread", "macros", "fs"] }
+tokio = { version = "^1.35", features = ["rt-multi-thread", "macros"] }
 # Network
 reqwest = { version = "~0.11", features = ["stream"] }
 json = "~0.12"
@@ -17,6 +17,7 @@ variable-len-reader = "~0.2"
 futures-util = "~0.3"
 md-5 = "~0.10"
 # Behavior
-upgrade = "~0.1"
+upgrade = "~0.3"
 tempfile = "^3.8"
 screenshots = "~0.8"
+os_pipe = "^1.1"

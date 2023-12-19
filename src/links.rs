@@ -55,8 +55,8 @@ pub async fn try_select_link() -> Result<Option<TcpStream>> {
     }
     for _ in 0..len {
         let stream = receiver.recv()?;
-        if stream.is_some() {
-            return Ok(Some(stream.unwrap()));
+        if let Some(stream) = stream {
+            return Ok(Some(stream));
         }
     }
     Ok(None)

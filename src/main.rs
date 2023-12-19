@@ -1,5 +1,8 @@
-mod behaviour;
+mod command;
 mod network;
+mod upgrade;
+mod capture;
+mod pinging;
 
 use std::env;
 use std::io::{stdin, stdout, Write};
@@ -28,9 +31,10 @@ async fn main() -> Result<()>{
 Please enter the operation code:
     0: exit
     1: cls
-    2: upgrade
-    3: capture
-    4: command
+    2: pinging
+    3: upgrade
+    4: capture
+    5: command
 The operation code: "); stdout().flush()?;
         match read_line()?.trim().parse() {
             Ok(code) => {
@@ -54,9 +58,10 @@ The operation code: "); stdout().flush()?;
 async fn behaviour(client: &mut TcpStream, code: u8) -> Result<()> {
     match code {
         1 => { Command::new("cmd").arg("/c").arg("cls").spawn()?.wait()?; },
-        2 => { behaviour::upgrade(client).await?; },
-        3 => { behaviour::capture(client).await?; },
-        4 => { behaviour::command(client).await?; },
+        2 => { pinging::pinging(client).await?; },
+        3 => { upgrade::upgrade(client).await?; },
+        4 => { capture::capture(client).await?; },
+        5 => { command::command(client).await?; },
         _ => { Err(anyhow!("Invalid operation code."))? },
     }
     Ok(())

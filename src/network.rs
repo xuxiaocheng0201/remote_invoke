@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use bytes::{Buf, BytesMut};
+use log::error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use variable_len_reader::str::read_string;
@@ -24,5 +25,14 @@ pub async fn recv(stream: &mut TcpStream) -> Result<Result<BytesMut>> {
         let mut reader = buffer.reader();
         let message = read_string(&mut reader)?;
         Err(anyhow!(message))
+    })
+}
+
+pub async fn send_recv(client: &mut TcpStream, message: &[u8]) -> Result<Option<BytesMut>> {
+    send(client, message).await?;
+    let response = recv(client).await?;
+    Ok(match response {
+        Ok(success) => { Some(success) }
+        Err(error) => { error!("Client error: {}", error); None }
     })
 }

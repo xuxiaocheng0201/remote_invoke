@@ -3,7 +3,7 @@ use bytes::{Buf, BytesMut};
 use log::error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use variable_len_reader::str::read_string;
+use variable_len_reader::VariableReadable;
 
 pub async fn send(stream: &mut TcpStream, message: &[u8]) -> Result<()> {
     stream.write_u128(message.len() as u128).await?;
@@ -23,7 +23,7 @@ pub async fn recv(stream: &mut TcpStream) -> Result<Result<BytesMut>> {
         let mut buffer = BytesMut::zeroed(len);
         stream.read_exact(&mut buffer).await?;
         let mut reader = buffer.reader();
-        let message = read_string(&mut reader)?;
+        let message = reader.read_string()?;
         Err(anyhow!(message))
     })
 }

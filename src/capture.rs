@@ -1,6 +1,7 @@
 use std::fs::read;
 use std::path::Path;
 use anyhow::{anyhow, Result};
+use bytes::{BufMut, BytesMut};
 use screenshots::Screen;
 use tempfile::tempdir;
 use tokio::net::TcpStream;
@@ -36,12 +37,11 @@ pub async fn capture(stream: &mut TcpStream) -> Result<()> {
     if images.is_empty() {
         return Err(anyhow!("No images."));
     }
-    send(stream, |writer| {
-        writer.write_u32_varint(images.len() as u32)?;
-        for image in &images {
-            let buffer = read(image)?;
-            writer.write_u8_vec(&buffer)?;
-        }
-        Ok(())
-    }).await
+    let mut writer = BytesMut::new().writer();
+    writer.write_u32_varint(images.len() as u32)?;
+    for image in &images {
+        let buffer = read(image)?;
+        writer.write_u8_vec(&buffer)?;
+    }
+    send(stream, &writer.into_inner()).await
 }

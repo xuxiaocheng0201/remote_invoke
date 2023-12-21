@@ -1,7 +1,7 @@
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use anyhow::{anyhow, Result};
-use bytes::Buf;
+use bytes::{Buf, BufMut, BytesMut};
 use futures_util::StreamExt;
 use md5::{Digest, Md5};
 use tokio::net::TcpStream;
@@ -27,9 +27,8 @@ pub async fn upgrade(stream: &mut TcpStream) -> Result<()> {
         return Err(anyhow!("Invalid md5 hash. Excepted {}, got {}.", md5, hasher));
     }
     upgrade::upgrade("upgrade.exe")?;
-    send(stream, |writer| {
-        writer.write_string(&"Successfully.")?;
-        Ok(())
-    }).await?;
+    let mut writer = BytesMut::new().writer();
+    writer.write_string(&"Successfully.")?;
+    send(stream, &writer.into_inner()).await?;
     Ok(())
 }

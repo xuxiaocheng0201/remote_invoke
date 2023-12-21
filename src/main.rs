@@ -54,7 +54,7 @@ async fn main_loop() -> Result<()> {
         let mut bytes = recv(&mut stream).await?.reader();
         macro_rules! run_func {
             ($func: ident, $stream: expr) => {
-                send(&mut stream, |_| Ok(())).await?;
+                send(&mut stream, &[]).await?;
                 if let Err(e) = $func::$func($stream).await {
                     send_err($stream, &e.to_string()).await?;
                     break;

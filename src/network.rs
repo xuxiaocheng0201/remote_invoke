@@ -1,15 +1,11 @@
 use anyhow::Result;
-use bytes::buf::Writer;
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use variable_len_reader::asynchronous::{AsyncVariableReadable, AsyncVariableWritable};
 
-pub async fn send(stream: &mut TcpStream, message: impl Fn(&mut Writer<BytesMut>) -> Result<()>) -> Result<()> {
+pub async fn send(stream: &mut TcpStream, message: &[u8]) -> Result<()> {
     stream.write_bool(true).await?;
-    let mut writer = BytesMut::new().writer();
-    message(&mut writer)?;
-    let message = writer.into_inner();
     stream.write_u128_varint(message.len() as u128).await?;
     stream.write_more(&message).await?;
     stream.flush().await?;

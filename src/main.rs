@@ -13,18 +13,19 @@ use crate::links::try_select_link;
 use crate::network::{recv, send, send_err};
 
 mod links;
+mod network;
+mod pinging;
 mod upgrade;
 mod capture;
 mod command;
-mod network;
-mod pinging;
 
 lazy_static! {
-    pub static ref AUTO_LAUNCHER: Result<AutoLaunch> = {
-        let name = "remote_invoke";
+    pub static ref AUTO_LAUNCHER: Result<AutoLaunch> = if cfg!(release) {
         let path = current_exe()?;
         let path = path.to_str().ok_or(anyhow!("Failed to get current exe"))?;
-        Ok(AutoLaunch::new(name, path, &[] as &[&str]))
+        Ok(AutoLaunch::new(&"remote_invoke", path, &[] as &[&str]))
+    } else {
+        Err(anyhow!("Auto launcher is disabled in debug mode."))
     };
 }
 
@@ -50,22 +51,26 @@ async fn main_loop() -> Result<()> {
         TcpStream::connect("127.0.0.1:25565").await?
     };
     loop {
-        let mut request = recv(&mut stream).await?.reader();
-        let function = request.read_string()?;
-        let response = match &function as &str {
-            "pinging" => pinging::pinging(&mut request).await,
-            "upgrade" => upgrade::upgrade(&mut request).await,
-            "command" => command::command(&mut request).await,
-            "capture" => capture::capture(&mut request).await,
-            _ => Err(anyhow!("Unknown function."))?,
-        };
-        match response.as_ref() {
-            Ok(r) => { send(&mut stream, r).await }
-            Err(e) => { send_err(&mut stream, &format!("{:?}", e)).await }
-        }?;
-        if function == "upgrade" && response.is_ok() {
-            break;
+        let mut bytes = recv(&mut stream).await?.reader();
+        macro_rules! run_func {
+            ($func: ident, $stream: expr) => {
+                send(&mut stream, |_| Ok(())).await?;
+                if let Err(e) = $func::$func($stream).await {
+                    send_err($stream, &e.to_string()).await?;
+                    break;
+                }
+            };
         }
+        match &bytes.read_string()? as &str {
+            "pinging" => { run_func!(pinging, &mut stream); },
+            "upgrade" => { run_func!(upgrade, &mut stream); break; },
+            "command" => { run_func!(command, &mut stream); },
+            "capture" => { run_func!(capture, &mut stream); },
+            _ => {
+                send_err(&mut stream, &"Unknown function.").await?;
+                continue;
+            }
+        };
     }
     Ok(())
 }

@@ -1,15 +1,14 @@
 use std::fs::read;
-use std::io::Read;
 use std::path::Path;
 use anyhow::{anyhow, Result};
-use bytes::{BufMut, BytesMut};
 use screenshots::Screen;
 use tempfile::tempdir;
+use tokio::net::TcpStream;
 use tokio::task::JoinSet;
 use variable_len_reader::VariableWritable;
-use variable_len_reader::varint::VarintWriter;
+use crate::network::send;
 
-async fn ca(directory: &Path) -> Result<()> {
+async fn capture_screens(directory: &Path) -> Result<()> {
     let mut tasks = JoinSet::<Result<()>>::new();
     for screen in Screen::all()? {
         let mut path = directory.to_path_buf();
@@ -26,10 +25,10 @@ async fn ca(directory: &Path) -> Result<()> {
     Ok(())
 }
 
-pub async fn capture(_bytes: &mut impl Read) -> Result<BytesMut> {
+pub async fn capture(stream: &mut TcpStream) -> Result<()> {
     let temp = tempdir()?;
     let temp = temp.path();
-    ca(temp).await?;
+    capture_screens(temp).await?;
     let mut images = Vec::new();
     for dir in temp.read_dir()? {
         images.push(dir?.path());
@@ -37,11 +36,12 @@ pub async fn capture(_bytes: &mut impl Read) -> Result<BytesMut> {
     if images.is_empty() {
         return Err(anyhow!("No images."));
     }
-    let mut writer = BytesMut::new().writer();
-    writer.write_usize_varint(images.len())?;
-    for image in images {
-        let buffer = read(image)?;
-        writer.write_u8_vec(&buffer)?;
-    }
-    Ok(writer.into_inner())
+    send(stream, |writer| {
+        writer.write_u32_varint(images.len() as u32)?;
+        for image in &images {
+            let buffer = read(image)?;
+            writer.write_u8_vec(&buffer)?;
+        }
+        Ok(())
+    }).await
 }

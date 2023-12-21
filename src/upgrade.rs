@@ -1,18 +1,22 @@
 use std::fs::OpenOptions;
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufWriter, Write};
 use anyhow::{anyhow, Result};
-use bytes::{BufMut, BytesMut};
+use bytes::Buf;
 use futures_util::StreamExt;
 use md5::{Digest, Md5};
+use tokio::net::TcpStream;
 use variable_len_reader::{VariableReadable, VariableWritable};
+use crate::network::{recv, send};
 
-pub async fn upgrade(bytes: &mut impl Read) -> Result<BytesMut> {
-    let url = bytes.read_string()?;
-    let md5 = bytes.read_string()?;
-    let mut stream = reqwest::get(url).await?.bytes_stream();
-    let mut file = BufWriter::new(OpenOptions::new().write(true).read(true).create(true).truncate(true).open("upgrade.exe")?);
+pub async fn upgrade(stream: &mut TcpStream) -> Result<()> {
+    let mut reader = recv(stream).await?.reader();
+    let url = reader.read_string()?;
+    let md5 = reader.read_string()?;
+    let mut upgrader = reqwest::get(url).await?.bytes_stream();
+    let mut file = BufWriter::new(OpenOptions::new()
+        .write(true).create(true).truncate(true).open("upgrade.exe")?);
     let mut hasher = Md5::default();
-    while let Some(bin) = stream.next().await {
+    while let Some(bin) = upgrader.next().await {
         let bin = bin?;
         file.write_all(&bin)?;
         hasher.update(&bin);
@@ -20,11 +24,12 @@ pub async fn upgrade(bytes: &mut impl Read) -> Result<BytesMut> {
     drop(file);
     let hasher = format!("{:x}", hasher.finalize());
     if md5 != hasher {
-        Err(anyhow!("Invalid md5 hash. Excepted {}, got {}.", md5, hasher))
-    } else {
-        let mut writer = BytesMut::new().writer();
-        writer.write_string(&"Successfully.")?;
-        upgrade::upgrade("./upgrade.exe")?;
-        Ok(writer.into_inner())
+        return Err(anyhow!("Invalid md5 hash. Excepted {}, got {}.", md5, hasher));
     }
+    upgrade::upgrade("upgrade.exe")?;
+    send(stream, |writer| {
+        writer.write_string(&"Successfully.")?;
+        Ok(())
+    }).await?;
+    Ok(())
 }

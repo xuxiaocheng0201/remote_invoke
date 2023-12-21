@@ -57,7 +57,7 @@ async fn main_loop() -> Result<()> {
                 send(&mut stream, &[]).await?;
                 if let Err(e) = $func::$func($stream).await {
                     send_err($stream, &e.to_string()).await?;
-                    break;
+                    continue;
                 }
             };
         }
